@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.finflow.presentation.ui.analytics.AnalyticsScreen
+import com.finflow.presentation.ui.budgets.BudgetsScreen
 import com.finflow.presentation.ui.dashboard.DashboardScreen
 import com.finflow.presentation.ui.goals.GoalsScreen
 import com.finflow.presentation.ui.profile.ProfileScreen
@@ -58,6 +59,7 @@ fun FinFlowApp() {
                 DashboardScreen(onAddTransaction = { navController.navigate(ROUTE_ADD_TRANSACTION) })
             }
             composable(Destination.Analytics.route) { AnalyticsScreen() }
+            composable(Destination.Budgets.route) { BudgetsScreen() }
             composable(Destination.Goals.route) { GoalsScreen() }
             composable(Destination.Profile.route) { ProfileScreen() }
             composable(ROUTE_ADD_TRANSACTION) {

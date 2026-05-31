@@ -1,9 +1,12 @@
 package com.finflow.data.local.mapper
 
+import com.finflow.data.local.entity.BudgetEntity
 import com.finflow.data.local.entity.CategoryEntity
 import com.finflow.data.local.entity.GoalEntity
 import com.finflow.data.local.entity.TransactionEntity
 import com.finflow.data.local.entity.WalletEntity
+import com.finflow.domain.model.Budget
+import com.finflow.domain.model.BudgetPeriod
 import com.finflow.domain.model.Category
 import com.finflow.domain.model.Goal
 import com.finflow.domain.model.Transaction
@@ -65,4 +68,24 @@ fun Goal.toEntity(): GoalEntity = GoalEntity(
     id = id, title = title, targetAmount = targetAmount, currentAmount = currentAmount,
     deadlineEpochDay = deadline?.toEpochDay(),
     icon = icon, colorHex = colorHex, isArchived = isArchived,
+)
+
+fun BudgetEntity.toDomain(): Budget = Budget(
+    id = id,
+    categoryId = categoryId,
+    limitAmount = limitAmount,
+    period = BudgetPeriod.valueOf(period),
+    start = LocalDate.ofEpochDay(startEpochDay),
+    notify80 = notify80,
+    notify100 = notify100,
+)
+
+fun Budget.toEntity(): BudgetEntity = BudgetEntity(
+    id = id,
+    categoryId = categoryId,
+    limitAmount = limitAmount,
+    period = period.name,
+    startEpochDay = start.toEpochDay(),
+    notify80 = notify80,
+    notify100 = notify100,
 )
