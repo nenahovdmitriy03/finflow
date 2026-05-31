@@ -1,9 +1,11 @@
 package com.finflow.di
 
+import com.finflow.data.repository.BudgetRepositoryImpl
 import com.finflow.data.repository.CategoryRepositoryImpl
 import com.finflow.data.repository.GoalRepositoryImpl
 import com.finflow.data.repository.TransactionRepositoryImpl
 import com.finflow.data.repository.WalletRepositoryImpl
+import com.finflow.domain.repository.BudgetRepository
 import com.finflow.domain.repository.CategoryRepository
 import com.finflow.domain.repository.GoalRepository
 import com.finflow.domain.repository.TransactionRepository
@@ -25,4 +27,6 @@ abstract class RepositoryModule {
     abstract fun bindWalletRepository(impl: WalletRepositoryImpl): WalletRepository
     @Binds @Singleton
     abstract fun bindGoalRepository(impl: GoalRepositoryImpl): GoalRepository
+    @Binds @Singleton
+    abstract fun bindBudgetRepository(impl: BudgetRepositoryImpl): BudgetRepository
 }

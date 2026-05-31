@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.finflow.data.local.FinFlowDatabase
+import com.finflow.data.local.dao.BudgetDao
 import com.finflow.data.local.dao.CategoryDao
 import com.finflow.data.local.dao.GoalDao
 import com.finflow.data.local.dao.TransactionDao
@@ -29,6 +30,7 @@ object DatabaseModule {
     fun provideDatabase(@ApplicationContext context: Context): FinFlowDatabase {
         lateinit var db: FinFlowDatabase
         db = Room.databaseBuilder(context, FinFlowDatabase::class.java, "finflow.db")
+            .fallbackToDestructiveMigration()
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(connection: SupportSQLiteDatabase) {
                     super.onCreate(connection)
@@ -49,4 +51,5 @@ object DatabaseModule {
     @Provides fun provideCategoryDao(db: FinFlowDatabase): CategoryDao = db.categoryDao()
     @Provides fun provideWalletDao(db: FinFlowDatabase): WalletDao = db.walletDao()
     @Provides fun provideGoalDao(db: FinFlowDatabase): GoalDao = db.goalDao()
+    @Provides fun provideBudgetDao(db: FinFlowDatabase): BudgetDao = db.budgetDao()
 }
