@@ -10,13 +10,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.YearMonth
 import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    transactionRepository: TransactionRepository,
+    private val transactionRepository: TransactionRepository,
     categoryRepository: CategoryRepository,
 ) : ViewModel() {
 
@@ -44,6 +45,8 @@ class DashboardViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5_000L),
         initialValue = DashboardUiState(),
     )
+
+    fun delete(id: Long) { viewModelScope.launch { transactionRepository.deleteById(id) } }
 
     private fun monthStart(): Long =
         YearMonth.now(zone).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
