@@ -20,13 +20,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -87,7 +92,10 @@ fun DashboardScreen(
                 item { EmptyState() }
             } else {
                 items(state.recentTransactions, key = { it.transaction.id }) { tx ->
-                    TransactionRow(tx)
+                    SwipeableTransactionRow(
+                        item = tx,
+                        onDelete = { viewModel.delete(tx.transaction.id) },
+                    )
                 }
             }
         }
@@ -140,6 +148,36 @@ private fun MoneyChip(label: String, amount: Double, icon: ImageVector, color: C
 }
 
 private val timeFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM, HH:mm", Locale("ru"))
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableTransactionRow(item: TransactionUi, onDelete: () -> Unit) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
+        }
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Expense.copy(alpha = 0.85f))
+                    .padding(end = 24.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(Icons.Rounded.Delete, contentDescription = "Удалить", tint = Color.White)
+            }
+        },
+    ) {
+        TransactionRow(item)
+    }
+}
 
 @Composable
 private fun TransactionRow(item: TransactionUi) {
