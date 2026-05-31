@@ -39,15 +39,18 @@ data class BudgetsUiState(
     val isLoading: Boolean = true,
     val cards: List<BudgetCard> = emptyList(),
     val availableCategories: List<Category> = emptyList(),
+    val allExpenseCategories: List<Category> = emptyList(),
 )
 
-data class CreateBudgetForm(
+data class BudgetForm(
+    val editingId: Long? = null,
     val categoryId: Long? = null,
     val limitText: String = "",
     val period: BudgetPeriod = BudgetPeriod.MONTHLY,
 ) {
     val limitValue: Double? get() = limitText.replace(",", ".").toDoubleOrNull()
     val isValid: Boolean get() = categoryId != null && (limitValue ?: 0.0) > 0.0
+    val isEditing: Boolean get() = editingId != null
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,76 +61,75 @@ class BudgetsViewModel @Inject constructor(
     private val transactionRepository: TransactionRepository,
 ) : ViewModel() {
 
-    private val _form = MutableStateFlow(CreateBudgetForm())
+    private val _form = MutableStateFlow(BudgetForm())
     private val _sheetVisible = MutableStateFlow(false)
 
     val uiState: StateFlow<BudgetsUiState> = combine(
         budgetRepository.observeAll(),
         categoryRepository.observeAll(),
-    ) { budgets, categories ->
-        budgets to categories
-    }.flatMapLatest { (budgets, categories) ->
-        val today = LocalDate.now()
-        val expenseCats = categories.filter { it.type == TransactionType.EXPENSE }
-        val usedCategoryIds = budgets.map { it.categoryId }.toSet()
-        val available = expenseCats.filter { it.id !in usedCategoryIds }
+    ) { budgets, categories -> budgets to categories }
+        .flatMapLatest { (budgets, categories) ->
+            val today = LocalDate.now()
+            val expenseCats = categories.filter { it.type == TransactionType.EXPENSE }
+            val used = budgets.map { it.categoryId }.toSet()
+            val available = expenseCats.filter { it.id !in used }
 
-        if (budgets.isEmpty()) {
-            flowOf(
-                BudgetsUiState(
-                    isLoading = false,
-                    cards = emptyList(),
-                    availableCategories = available,
+            if (budgets.isEmpty()) {
+                flowOf(
+                    BudgetsUiState(
+                        isLoading = false,
+                        cards = emptyList(),
+                        availableCategories = available,
+                        allExpenseCategories = expenseCats,
+                    )
                 )
-            )
-        } else {
-            val flows = budgets.map { budget ->
-                val (from, to) = periodRange(budget, today)
-                combine(
-                    flowOf(budget),
-                    transactionRepository.observeInRange(from, to),
-                ) { b, txs ->
-                    val spent = txs
-                        .filter { it.type == TransactionType.EXPENSE && it.categoryId == b.categoryId }
-                        .sumOf { it.amount }
-                    val cat = categories.firstOrNull { it.id == b.categoryId }
-                    val progress = if (b.limitAmount > 0) (spent / b.limitAmount).toFloat() else 0f
-                    val remaining = b.limitAmount - spent
-                    BudgetCard(
-                        budget = b,
-                        category = cat,
-                        spent = spent,
-                        progress = progress,
-                        remaining = remaining,
-                        isOverLimit = spent >= b.limitAmount,
-                        isWarning = progress >= 0.8f && progress < 1f,
+            } else {
+                val flows = budgets.map { b ->
+                    val (from, to) = periodRange(b, today)
+                    combine(flowOf(b), transactionRepository.observeInRange(from, to)) { bb, txs ->
+                        val spent = txs.filter { it.type == TransactionType.EXPENSE && it.categoryId == bb.categoryId }
+                            .sumOf { it.amount }
+                        val cat = categories.firstOrNull { it.id == bb.categoryId }
+                        val progress = if (bb.limitAmount > 0) (spent / bb.limitAmount).toFloat() else 0f
+                        val remaining = bb.limitAmount - spent
+                        BudgetCard(
+                            budget = bb, category = cat,
+                            spent = spent, progress = progress, remaining = remaining,
+                            isOverLimit = spent >= bb.limitAmount,
+                            isWarning = progress >= 0.8f && progress < 1f,
+                        )
+                    }
+                }
+                combine(flows) { arr ->
+                    BudgetsUiState(
+                        isLoading = false,
+                        cards = arr.toList(),
+                        availableCategories = available,
+                        allExpenseCategories = expenseCats,
                     )
                 }
             }
-            combine(flows) { arr ->
-                BudgetsUiState(
-                    isLoading = false,
-                    cards = arr.toList(),
-                    availableCategories = available,
-                )
-            }
         }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5_000L),
-        initialValue = BudgetsUiState(),
-    )
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), BudgetsUiState())
 
     val sheetVisible: StateFlow<Boolean> = _sheetVisible.asStateFlow()
-    val form: StateFlow<CreateBudgetForm> = _form.asStateFlow()
+    val form: StateFlow<BudgetForm> = _form.asStateFlow()
 
-    fun openCreate() { _form.value = CreateBudgetForm(); _sheetVisible.value = true }
-    fun closeCreate() { _sheetVisible.value = false }
-
+    fun openCreate() { _form.value = BudgetForm(); _sheetVisible.value = true }
+    fun openEdit(card: BudgetCard) {
+        _form.value = BudgetForm(
+            editingId = card.budget.id,
+            categoryId = card.budget.categoryId,
+            limitText = card.budget.limitAmount.toString().removeSuffix(".0"),
+            period = card.budget.period,
+        )
+        _sheetVisible.value = true
+    }
+    fun closeSheet() { _sheetVisible.value = false }
     fun setCategory(id: Long) { _form.value = _form.value.copy(categoryId = id) }
     fun setLimit(v: String) {
-        val cleaned = v.filter { it.isDigit() || it == '.' || it == ',' }
-        _form.value = _form.value.copy(limitText = cleaned)
+        val c = v.filter { it.isDigit() || it == '.' || it == ',' }
+        _form.value = _form.value.copy(limitText = c)
     }
     fun setPeriod(p: BudgetPeriod) { _form.value = _form.value.copy(period = p) }
 
@@ -135,14 +137,25 @@ class BudgetsViewModel @Inject constructor(
         val f = _form.value
         if (!f.isValid) return
         viewModelScope.launch {
-            budgetRepository.add(
-                Budget(
-                    categoryId = f.categoryId!!,
-                    limitAmount = f.limitValue ?: 0.0,
-                    period = f.period,
-                    start = LocalDate.now().withDayOfMonth(1),
+            if (f.isEditing) {
+                val existing = budgetRepository.getById(f.editingId!!) ?: return@launch
+                budgetRepository.update(
+                    existing.copy(
+                        categoryId = f.categoryId!!,
+                        limitAmount = f.limitValue ?: 0.0,
+                        period = f.period,
+                    )
                 )
-            )
+            } else {
+                budgetRepository.add(
+                    Budget(
+                        categoryId = f.categoryId!!,
+                        limitAmount = f.limitValue ?: 0.0,
+                        period = f.period,
+                        start = LocalDate.now().withDayOfMonth(1),
+                    )
+                )
+            }
             _sheetVisible.value = false
         }
     }
@@ -151,20 +164,18 @@ class BudgetsViewModel @Inject constructor(
         viewModelScope.launch { budgetRepository.deleteById(id) }
     }
 
-    private fun periodRange(budget: Budget, today: LocalDate): Pair<Long, Long> {
-        val zone = ZoneId.systemDefault()
-        return when (budget.period) {
+    private fun periodRange(b: Budget, today: LocalDate): Pair<Long, Long> {
+        val z = ZoneId.systemDefault()
+        return when (b.period) {
             BudgetPeriod.MONTHLY -> {
                 val ym = YearMonth.from(today)
-                val from = ym.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                val to = ym.atEndOfMonth().atTime(23, 59, 59).atZone(zone).toInstant().toEpochMilli()
-                from to to
+                ym.atDay(1).atStartOfDay(z).toInstant().toEpochMilli() to
+                    ym.atEndOfMonth().atTime(23, 59, 59).atZone(z).toInstant().toEpochMilli()
             }
             BudgetPeriod.WEEKLY -> {
-                val weekStart = today.with(java.time.DayOfWeek.MONDAY)
-                val from = weekStart.atStartOfDay(zone).toInstant().toEpochMilli()
-                val to = weekStart.plusDays(6).atTime(23, 59, 59).atZone(zone).toInstant().toEpochMilli()
-                from to to
+                val ws = today.with(java.time.DayOfWeek.MONDAY)
+                ws.atStartOfDay(z).toInstant().toEpochMilli() to
+                    ws.plusDays(6).atTime(23, 59, 59).atZone(z).toInstant().toEpochMilli()
             }
         }
     }

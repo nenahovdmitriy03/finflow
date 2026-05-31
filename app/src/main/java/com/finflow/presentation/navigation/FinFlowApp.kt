@@ -54,6 +54,10 @@ fun FinFlowApp() {
             navController = navController,
             startDestination = Destination.Dashboard.route,
             modifier = Modifier.padding(padding),
+            enterTransition = enterFromRight(),
+            exitTransition = exitToLeft(),
+            popEnterTransition = popEnterFromLeft(),
+            popExitTransition = popExitToRight(),
         ) {
             composable(Destination.Dashboard.route) {
                 DashboardScreen(onAddTransaction = { navController.navigate(ROUTE_ADD_TRANSACTION) })
